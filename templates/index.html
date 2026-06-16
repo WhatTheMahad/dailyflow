@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - V-Taper Workout Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>V-Taper Workout Tracker</h1>
+
+        <!-- Navigation -->
+        <nav>
+            <a href="/" class="active">Dashboard</a>
+            <a href="/log">Workout</a>
+            <a href="/water">Water</a>
+            <a href="/meals">Meals</a>
+            <a href="/exercises">Exercises</a>
+            <a href="/weight">Weight</a>
+            <a href="/progress">Progress</a>
+            <a href="/settings">Settings</a>
+        </nav>
+
+        <!-- Quote of the Day -->
+        <div class="card quote-card">
+            <div class="quote-label">Quote of the day · {{ today }}</div>
+            <blockquote class="quote-text">"{{ quote.text }}"</blockquote>
+            <div class="quote-author">— {{ quote.author }}</div>
+            <div class="quote-refresh">New quote in <span id="quote-timer">--:--:--</span></div>
+        </div>
+
+        <!-- Today's routine status -->
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            {% if today_is_workout %}
+            <span class="routine-badge workout">💪 Today is a workout day · {{ routine.name }}</span>
+            {% else %}
+            <span class="routine-badge rest">😌 Today is a rest day · {{ routine.name }}</span>
+            {% endif %}
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <!-- Body weight -->
+            <div class="card stat-card">
+                <div class="stat-icon">⚖️</div>
+                <div class="stat-value">
+                    {% if current_weight is not none %}{{ current_weight }} <span class="stat-unit">kg</span>{% else %}—{% endif %}
+                </div>
+                <div class="stat-label">Current Body Weight</div>
+                {% if last_weight_date %}
+                <div class="stat-sub">Last logged {{ last_weight_date }}</div>
+                {% else %}
+                <div class="stat-sub">No weight logged yet</div>
+                {% endif %}
+            </div>
+
+            <!-- Today's workout -->
+            <div class="card stat-card">
+                <div class="stat-icon">🏋️</div>
+                <div class="stat-value">{{ workout_exercises|length }}</div>
+                <div class="stat-label">Exercises Today</div>
+                {% if workout_exercises %}
+                <div class="stat-sub">
+                    {{ workout_exercises|selectattr('completed')|list|length }} of {{ workout_exercises|length }} completed
+                </div>
+                {% else %}
+                <div class="stat-sub">No workout logged today</div>
+                {% endif %}
+            </div>
+
+            <!-- Calories & protein -->
+            <div class="card stat-card">
+                <div class="stat-icon">🍗</div>
+                <div class="stat-value">{{ total_calories }}{% if targets %}<span class="stat-unit"> / {{ targets.calories }}</span>{% else %}<span class="stat-unit"> cal</span>{% endif %}</div>
+                <div class="stat-label">Calories Today</div>
+                {% if targets %}
+                <div class="stat-sub">Protein {{ total_protein }} / {{ targets.protein }}g</div>
+                {% else %}
+                <div class="stat-sub">P {{ total_protein }}g · C {{ total_carbs }}g · F {{ total_fat }}g</div>
+                {% endif %}
+                <div class="stat-sub">{{ meals_count }} meal{{ '' if meals_count == 1 else 's' }} · set goals in <a href="/settings">Settings</a></div>
+            </div>
+
+            <!-- Water -->
+            <div class="card stat-card">
+                <div class="stat-icon">💧</div>
+                <div class="stat-value">{{ '%.1f'|format(water_ml / 1000) }} <span class="stat-unit">L</span></div>
+                <div class="stat-label">Water Today</div>
+                <div class="stat-sub">
+                    {{ water_servings }} of {{ water_target_servings }} glasses
+                    {% if water_servings >= water_target_servings %}· goal reached ✅{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's workout detail (read-only summary) -->
+        {% if workout_exercises %}
+        <div class="card">
+            <h2>What You Did Today</h2>
+            {% for we in workout_exercises %}
+            <div class="exercise-item {% if we.completed %}completed{% endif %}">
+                <div class="check-static {% if we.completed %}checked{% endif %}">{% if we.completed %}✓{% endif %}</div>
+                <div class="exercise-info">
+                    <div class="exercise-name">{{ we.name }}</div>
+                    <div class="exercise-part">{{ we.body_part }}</div>
+                </div>
+                <div class="exercise-stats-readonly">
+                    {{ we.sets }} × {{ we.reps }}{% if we.weight %} @ {{ we.weight }}kg{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Weigh-in Timer -->
+        <div class="card timer-card">
+            <h2>Next Weigh-In</h2>
+            {% if next_weigh_in %}
+            <div class="timer-sub">Last weighed {{ last_weight_date }} · due {{ next_weigh_in }}</div>
+            <div id="weight-timer" class="timer-display">--</div>
+            {% else %}
+            <div class="timer-sub">Log your body weight on the <a href="/weight">Weight</a> page to start the 7-day timer.</div>
+            {% endif %}
+        </div>
+
+        <!-- Commitment Heatmap -->
+        <div class="card">
+            <h2>Workout Consistency (Last 365 days)</h2>
+            <p class="card-hint">Routine: <strong>{{ routine.name }}</strong> — {{ routine.description }}</p>
+            <div id="heatmap" class="heatmap-container"></div>
+            <div class="heatmap-legend">
+                <div class="cell" style="background: #34c759;"></div><span>Done</span>
+                <div class="cell" style="background: #ff6b6b;"></div><span>Missed</span>
+                <div class="cell" style="background: #e5e5e7;"></div><span>Rest</span>
+                <div class="cell" style="background: #0071e3;"></div><span>Bonus</span>
+                <div class="cell" style="background: #ffd60a;"></div><span>Today (pending)</span>
+            </div>
+            <div id="heatmap-tooltip" class="heatmap-tooltip"></div>
+        </div>
+    </div>
+
+    <script>
+        // ---- Heatmap ----
+        const workoutDates = {{ workout_dates | tojson }};
+        const routine = {{ routine | tojson }};
+        const loggedSet = new Set(workoutDates);
+        const heatmapContainer = document.getElementById('heatmap');
+        const tooltip = document.getElementById('heatmap-tooltip');
+
+        function isWorkoutDay(d) {
+            const p = routine.pattern || 'W';
+            if (routine.mode === 'weekly') {
+                const idx = (d.getDay() + 6) % 7;        // JS Sun=0 -> Mon=0
+                return p[idx % p.length] === 'W';
+            }
+            const start = new Date(routine.start + 'T00:00:00');
+            const offset = Math.floor((d - start) / 86400000);
+            return p[((offset % p.length) + p.length) % p.length] === 'W';
+        }
+
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        for (let i = 364; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
+            const logged = loggedSet.has(dateStr);
+            const workoutDay = isWorkoutDay(date);
+
+            let cls, status;
+            if (workoutDay) {
+                if (logged) { cls = 'done'; status = 'Workout done 💪'; }
+                else if (dateStr === todayStr) { cls = 'scheduled'; status = "Workout day — not logged yet"; }
+                else { cls = 'missed'; status = 'Workout missed'; }
+            } else {
+                if (logged) { cls = 'bonus'; status = 'Bonus workout on a rest day 🔥'; }
+                else { cls = 'rest'; status = 'Rest day'; }
+            }
+
+            const cell = document.createElement('div');
+            cell.className = 'heatmap-cell ' + cls;
+
+            const niceDate = date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+            cell.addEventListener('mouseenter', () => {
+                tooltip.textContent = niceDate + ' — ' + status;
+                tooltip.style.opacity = '1';
+            });
+            cell.addEventListener('mousemove', (e) => {
+                tooltip.style.left = (e.pageX + 12) + 'px';
+                tooltip.style.top = (e.pageY + 12) + 'px';
+            });
+            cell.addEventListener('mouseleave', () => { tooltip.style.opacity = '0'; });
+            heatmapContainer.appendChild(cell);
+        }
+
+        // ---- Live countdown helper ----
+        function fmt(ms) {
+            if (ms < 0) ms = 0;
+            const s = Math.floor(ms / 1000);
+            const d = Math.floor(s / 86400);
+            const h = Math.floor((s % 86400) / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = s % 60;
+            return `${d}d ${h}h ${m}m ${sec}s`;
+        }
+
+        // ---- Weigh-in timer (last weight + 7 days) ----
+        {% if next_weigh_in %}
+        const weighInTarget = new Date("{{ next_weigh_in }}T00:00:00");
+        const weightTimerEl = document.getElementById('weight-timer');
+        function updateWeightTimer() {
+            const diff = weighInTarget - new Date();
+            if (diff <= 0) {
+                weightTimerEl.textContent = 'Due now — time to weigh in!';
+                weightTimerEl.classList.add('timer-overdue');
+            } else {
+                weightTimerEl.textContent = fmt(diff) + ' remaining';
+            }
+        }
+        updateWeightTimer();
+        setInterval(updateWeightTimer, 1000);
+        {% endif %}
+
+        // ---- Quote refresh timer (until next midnight) ----
+        const quoteTimerEl = document.getElementById('quote-timer');
+        function updateQuoteTimer() {
+            const now = new Date();
+            const midnight = new Date(now);
+            midnight.setHours(24, 0, 0, 0);
+            quoteTimerEl.textContent = fmt(midnight - now);
+        }
+        updateQuoteTimer();
+        setInterval(updateQuoteTimer, 1000);
+    </script>
+</body>
+</html>

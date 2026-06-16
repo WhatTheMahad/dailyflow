@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meals - V-Taper Workout Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>V-Taper Workout Tracker</h1>
+
+        <!-- Navigation -->
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/log">Workout</a>
+            <a href="/water">Water</a>
+            <a href="/meals" class="active">Meals</a>
+            <a href="/exercises">Exercises</a>
+            <a href="/weight">Weight</a>
+            <a href="/progress">Progress</a>
+            <a href="/settings">Settings</a>
+        </nav>
+
+        <!-- Date navigation -->
+        <div class="card date-nav">
+            <a class="date-arrow" href="?date={{ nav.prev }}" title="Previous day">&#8592;</a>
+            <form method="GET" class="date-form">
+                <input type="date" name="date" value="{{ nav.date }}" max="{{ nav.today }}"
+                       onchange="this.form.submit()">
+            </form>
+            {% if not nav.is_today %}
+            <a class="date-arrow" href="?date={{ nav.next }}" title="Next day">&#8594;</a>
+            <a class="btn-secondary btn-sm" href="/meals">Today</a>
+            {% endif %}
+        </div>
+
+        <!-- Nutrition totals for the selected day -->
+        <div class="card">
+            <h2>{% if nav.is_today %}Today's Nutrition{% else %}Nutrition{% endif %} · {{ nav.label }}</h2>
+            {% if targets %}
+            <p class="card-hint">Targets are set from your bodyweight — adjust them on the <a href="/settings">Settings</a> page.</p>
+            {% else %}
+            <p class="card-hint">Set your weight &amp; goal on the <a href="/settings">Settings</a> page to see daily targets.</p>
+            {% endif %}
+            <div class="macro-summary">
+                {% set pills = [
+                    ('macro-cal', 'Calories', totals.calories, targets.calories if targets else None, ''),
+                    ('macro-pro', 'Protein', totals.protein, targets.protein if targets else None, 'g'),
+                    ('macro-carb', 'Carbs', totals.carbs, targets.carbs if targets else None, 'g'),
+                    ('macro-fat', 'Fat', totals.fat, targets.fat if targets else None, 'g')
+                ] %}
+                {% for cls, label, eaten, target, unit in pills %}
+                <div class="macro-pill {{ cls }}">
+                    <span class="macro-num">{{ eaten }}{{ unit }}{% if target %}<span class="macro-target"> / {{ target }}{{ unit }}</span>{% endif %}</span>
+                    <span class="macro-lbl">{{ label }}</span>
+                    {% if target %}
+                    <div class="macro-bar"><div class="macro-bar-fill" style="width: {{ [100, (eaten / target * 100)|round(0,'floor')|int]|min }}%;"></div></div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Quick add from templates (the main way to log) -->
+        <div class="card">
+            <h2>What did you eat?</h2>
+            <p class="card-hint">Tap a meal to log it — calories and macros are added automatically.</p>
+            <div class="template-grid">
+                {% for t in templates %}
+                <div class="template-chip">
+                    <form action="/meals/template/{{ t.id }}/add?date={{ nav.date }}" method="POST" class="template-add-form">
+                        <input type="hidden" name="date" value="{{ nav.date }}">
+                        <button type="submit" class="template-btn">
+                            <span class="template-name">{{ t.name }}</span>
+                            <span class="template-cal">{{ t.calories }} cal</span>
+                            <span class="template-macros">
+                                <span class="dot dot-pro"></span>{{ t.protein }}p
+                                <span class="dot dot-carb"></span>{{ t.carbs or 0 }}c
+                                <span class="dot dot-fat"></span>{{ t.fat or 0 }}f
+                            </span>
+                        </button>
+                    </form>
+                    <form action="/meals/template/{{ t.id }}/delete?date={{ nav.date }}" method="POST" class="template-del-form"
+                          onsubmit="return confirm('Remove “{{ t.name }}” from your meal templates?');">
+                        <button type="submit" class="icon-btn icon-btn-danger" title="Remove template" aria-label="Remove template">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Add a new template -->
+            <details class="template-new">
+                <summary>+ Add a meal to your templates</summary>
+                <form action="/meals/template?date={{ nav.date }}" method="POST" class="macro-form">
+                    <input type="hidden" name="date" value="{{ nav.date }}">
+                    <div class="form-group grow">
+                        <label>Meal Name</label>
+                        <input type="text" name="name" required placeholder="e.g., Cottage Cheese (200g)">
+                    </div>
+                    <div class="form-group">
+                        <label>Calories</label>
+                        <input type="number" name="calories" min="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Protein (g)</label>
+                        <input type="number" name="protein" min="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Carbs (g)</label>
+                        <input type="number" name="carbs" min="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Fat (g)</label>
+                        <input type="number" name="fat" min="0" placeholder="0">
+                    </div>
+                    <button type="submit" class="btn-primary">Save Template</button>
+                </form>
+            </details>
+        </div>
+
+        <!-- Logged meals for the selected day -->
+        <div class="card">
+            <h2>{% if nav.is_today %}Logged Today{% else %}Logged on {{ nav.label }}{% endif %}</h2>
+            {% for meal in meals %}
+            <div class="meal-item">
+                <div class="meal-main">
+                    <span class="meal-name">{{ meal.name }}</span>
+                    <span class="meal-stats">
+                        {{ meal.calories }} cal ·
+                        {{ meal.protein }}p · {{ meal.carbs or 0 }}c · {{ meal.fat or 0 }}f
+                    </span>
+                </div>
+                <form action="/meals/{{ meal.id }}/delete?date={{ nav.date }}" method="POST"
+                      onsubmit="return confirm('Delete “{{ meal.name }}” from this day?');">
+                    <button type="submit" class="icon-btn" title="Delete meal" aria-label="Delete meal">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <p class="empty-state">Nothing logged yet. Tap a meal above to get started.</p>
+            {% endfor %}
+
+            <!-- One-off meal not in templates -->
+            <details class="template-new">
+                <summary>+ Log a one-off meal (not a template)</summary>
+                <form action="/meals?date={{ nav.date }}" method="POST" class="macro-form">
+                    <input type="hidden" name="date" value="{{ nav.date }}">
+                    <div class="form-group grow">
+                        <label>Meal Name</label>
+                        <input type="text" name="name" required placeholder="e.g., Restaurant Burger">
+                    </div>
+                    <div class="form-group">
+                        <label>Calories</label>
+                        <input type="number" name="calories" min="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Protein (g)</label>
+                        <input type="number" name="protein" min="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Carbs (g)</label>
+                        <input type="number" name="carbs" min="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Fat (g)</label>
+                        <input type="number" name="fat" min="0" placeholder="0">
+                    </div>
+                    <button type="submit" class="btn-success">Log Meal</button>
+                </form>
+            </details>
+        </div>
+    </div>
+</body>
+</html>

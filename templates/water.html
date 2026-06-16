@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water - V-Taper Workout Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>V-Taper Workout Tracker</h1>
+
+        <!-- Navigation -->
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/log">Workout</a>
+            <a href="/water" class="active">Water</a>
+            <a href="/meals">Meals</a>
+            <a href="/exercises">Exercises</a>
+            <a href="/weight">Weight</a>
+            <a href="/progress">Progress</a>
+            <a href="/settings">Settings</a>
+        </nav>
+
+        <!-- Date navigation -->
+        <div class="card date-nav">
+            <a class="date-arrow" href="?date={{ nav.prev }}" title="Previous day">&#8592;</a>
+            <form method="GET" class="date-form">
+                <input type="date" name="date" value="{{ nav.date }}" max="{{ nav.today }}"
+                       onchange="this.form.submit()">
+            </form>
+            {% if not nav.is_today %}
+            <a class="date-arrow" href="?date={{ nav.next }}" title="Next day">&#8594;</a>
+            <a class="btn-secondary btn-sm" href="/water">Today</a>
+            {% endif %}
+        </div>
+
+        <!-- Water Intake -->
+        <div class="card">
+            <h2>{{ nav.label }}</h2>
+
+            <div class="water-headline">
+                <span class="water-amount">{{ '%.1f'|format(water_ml / 1000) }} L</span>
+                <span class="water-target">/ {{ '%.0f'|format(target_ml / 1000) }} L goal</span>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="water-bar">
+                <div class="water-bar-fill" style="width: {{ [100, (water_ml / target_ml * 100)|round(0, 'floor')|int]|min }}%;"></div>
+            </div>
+
+            {% if goal_reached %}
+            <div class="water-status reached">🎉 Daily target reached! ({{ servings }} × {{ serving_ml }}ml)</div>
+            {% else %}
+            <div class="water-status pending">
+                {{ servings }} of {{ target_servings }} glasses · {{ (target_ml - water_ml) }}ml to go
+            </div>
+            {% endif %}
+
+            <!-- Add / remove 500ml -->
+            <div class="water-controls">
+                <form action="/water?date={{ nav.date }}" method="POST">
+                    <input type="hidden" name="date" value="{{ nav.date }}">
+                    <input type="hidden" name="action" value="add">
+                    <button type="submit" class="btn-primary btn-water">💧 I drank water (+{{ serving_ml }}ml)</button>
+                </form>
+                <form action="/water?date={{ nav.date }}" method="POST">
+                    <input type="hidden" name="date" value="{{ nav.date }}">
+                    <input type="hidden" name="action" value="remove">
+                    <button type="submit" class="btn-secondary">−{{ serving_ml }}ml</button>
+                </form>
+            </div>
+
+            <!-- Glass visualization -->
+            <div class="water-tracker">
+                {% for i in range(target_servings) %}
+                <div class="water-glass {% if i < servings %}filled{% endif %}"></div>
+                {% endfor %}
+                {% for i in range(servings - target_servings) %}
+                <div class="water-glass filled extra"></div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

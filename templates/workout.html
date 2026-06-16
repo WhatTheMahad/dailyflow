@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout - V-Taper Workout Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>V-Taper Workout Tracker</h1>
+
+        <!-- Navigation -->
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/log" class="active">Workout</a>
+            <a href="/water">Water</a>
+            <a href="/meals">Meals</a>
+            <a href="/exercises">Exercises</a>
+            <a href="/weight">Weight</a>
+            <a href="/progress">Progress</a>
+            <a href="/settings">Settings</a>
+        </nav>
+
+        <!-- Date navigation -->
+        <div class="card date-nav">
+            <a class="date-arrow" href="?date={{ nav.prev }}" title="Previous day">&#8592;</a>
+            <form method="GET" class="date-form">
+                <input type="date" name="date" value="{{ nav.date }}" max="{{ nav.today }}"
+                       onchange="this.form.submit()">
+            </form>
+            {% if not nav.is_today %}
+            <a class="date-arrow" href="?date={{ nav.next }}" title="Next day">&#8594;</a>
+            <a class="btn-secondary btn-sm" href="/log">Today</a>
+            {% endif %}
+        </div>
+
+        <!-- Workout for the selected day -->
+        <div class="card">
+            <h2>{% if nav.is_today %}Today's Workout{% else %}Workout{% endif %} · {{ nav.label }}</h2>
+
+            <!-- Add Exercise Form -->
+            <form action="/workout?date={{ nav.date }}" method="POST" class="form-row" style="margin-bottom: 2rem;">
+                <input type="hidden" name="date" value="{{ nav.date }}">
+                <div class="form-group">
+                    <label>Exercise</label>
+                    <select name="exercise_id">
+                        {% for exercise in exercises %}
+                        <option value="{{ exercise.id }}">{{ exercise.name }} ({{ exercise.body_part }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Sets</label>
+                    <select name="sets">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Reps</label>
+                    <select name="reps">
+                        <option value="6">6</option>
+                        <option value="8">8</option>
+                        <option value="10" selected>10</option>
+                        <option value="12">12</option>
+                        <option value="15">15</option>
+                        <option value="20">20</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Weight (kg)</label>
+                    <select name="weight">
+                        <option value="0">0</option>
+                        <option value="2.5">2.5</option>
+                        <option value="5">5</option>
+                        <option value="7.5">7.5</option>
+                        <option value="10">10</option>
+                        <option value="12.5">12.5</option>
+                        <option value="15">15</option>
+                        <option value="17.5">17.5</option>
+                        <option value="20">20</option>
+                        <option value="22.5">22.5</option>
+                        <option value="25">25</option>
+                        <option value="30">30</option>
+                        <option value="35">35</option>
+                        <option value="40">40</option>
+                        <option value="45">45</option>
+                        <option value="50">50</option>
+                        <option value="60">60</option>
+                        <option value="70">70</option>
+                        <option value="80">80</option>
+                        <option value="90">90</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Add Exercise</button>
+            </form>
+
+            <!-- Exercise List -->
+            {% for we in workout_exercises %}
+            <div id="exercise-{{ we.id }}" class="exercise-item {% if we.completed %}completed{% endif %}">
+                <button onclick="toggleExercise({{ we.id }})" class="check-btn {% if we.completed %}checked{% endif %}">
+                    {% if we.completed %}✓{% else %}{% endif %}
+                </button>
+                <div class="exercise-info">
+                    <div class="exercise-name">{{ we.name }}</div>
+                    <div class="exercise-part">{{ we.body_part }}</div>
+                </div>
+                <div class="exercise-stats">
+                    <input type="number" value="{{ we.sets }}" onchange="updateExercise({{ we.id }})"
+                           class="stat-input" data-field="sets" placeholder="3">
+                    <span class="stat-label">sets</span>
+                    <input type="number" value="{{ we.reps }}" onchange="updateExercise({{ we.id }})"
+                           class="stat-input" data-field="reps" placeholder="10">
+                    <span class="stat-label">reps</span>
+                    <input type="number" step="0.5" value="{{ we.weight or '' }}" onchange="updateExercise({{ we.id }})"
+                           class="stat-input" data-field="weight" placeholder="kg">
+                    <span class="stat-label">kg</span>
+                </div>
+                <form action="/workout/delete/{{ we.id }}?date={{ nav.date }}" method="POST"
+                      onsubmit="return confirm('Remove {{ we.name }} from this workout?');">
+                    <button type="submit" class="icon-btn" title="Remove exercise" aria-label="Remove exercise">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <p class="empty-state">No exercises logged for this day. Pick one above to add it.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        function toggleExercise(id) {
+            fetch(`/workout/toggle/${id}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    const el = document.getElementById(`exercise-${id}`);
+                    const btn = el.querySelector('.check-btn');
+                    if (data.completed) {
+                        el.classList.add('completed');
+                        btn.classList.add('checked');
+                        btn.textContent = '✓';
+                    } else {
+                        el.classList.remove('completed');
+                        btn.classList.remove('checked');
+                        btn.textContent = '';
+                    }
+                });
+        }
+
+        function updateExercise(id) {
+            const el = document.getElementById(`exercise-${id}`);
+            const sets = el.querySelector('[data-field="sets"]').value;
+            const reps = el.querySelector('[data-field="reps"]').value;
+            const weight = el.querySelector('[data-field="weight"]').value;
+
+            const formData = new FormData();
+            formData.append('sets', sets);
+            formData.append('reps', reps);
+            formData.append('weight', weight);
+
+            fetch(`/workout/update/${id}`, { method: 'POST', body: formData });
+        }
+    </script>
+</body>
+</html>

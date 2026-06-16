@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - V-Taper Workout Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>V-Taper Workout Tracker</h1>
+
+        <!-- Navigation -->
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/log">Workout</a>
+            <a href="/water">Water</a>
+            <a href="/meals">Meals</a>
+            <a href="/exercises">Exercises</a>
+            <a href="/weight">Weight</a>
+            <a href="/progress">Progress</a>
+            <a href="/settings" class="active">Settings</a>
+        </nav>
+
+        <!-- Profile / inputs -->
+        <div class="card">
+            <h2>Your Profile</h2>
+            <p class="card-hint">Your calorie and macro targets are calculated from your current bodyweight, so they update automatically as your weight changes.</p>
+            <form action="/settings" method="POST">
+                <div class="settings-grid">
+                    <div class="form-group">
+                        <label>Current Weight (kg)</label>
+                        <input type="number" step="0.1" name="weight_kg"
+                               value="{{ current_weight if current_weight is not none else '' }}"
+                               placeholder="e.g., 72.5">
+                        <span class="field-note">Updates today's weigh-in</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Height (feet)</label>
+                        <input type="number" name="height_feet" min="3" max="8" required
+                               value="{{ settings.height_feet or '' }}" placeholder="5">
+                    </div>
+                    <div class="form-group">
+                        <label>Height (inches)</label>
+                        <input type="number" name="height_inches" min="0" max="11"
+                               value="{{ settings.height_inches if settings.height_inches is not none else '' }}" placeholder="9">
+                    </div>
+                    <div class="form-group">
+                        <label>Goal</label>
+                        <select name="goal">
+                            {% for key, label in goal_labels.items() %}
+                            <option value="{{ key }}" {% if settings.goal == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Activity Level</label>
+                        <select name="activity">
+                            {% for key, label in activity_labels.items() %}
+                            <option value="{{ key }}" {% if settings.activity == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary" style="margin-top: 1rem;">Save Settings</button>
+            </form>
+        </div>
+
+        <!-- Workout Routine -->
+        <div class="card">
+            <h2>Workout Routine</h2>
+            <p class="card-hint">Current: <strong>{{ routine.name }}</strong> — {{ routine.description }}. This colors your consistency heatmap (rest days won't count as missed).</p>
+            <form action="/settings/routine" method="POST">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Routine Name</label>
+                    <input type="text" name="routine_name" value="{{ routine.name }}" placeholder="e.g., 4-Day Split">
+                </div>
+
+                <div class="routine-modes">
+                    <label class="routine-mode-opt">
+                        <input type="radio" name="routine_mode" value="cycle" {% if routine.mode == 'cycle' %}checked{% endif %} onchange="toggleRoutineMode()">
+                        <span><strong>Alternating cycle</strong><br>Train N days, rest M days, repeating (e.g. alternate days).</span>
+                    </label>
+                    <label class="routine-mode-opt">
+                        <input type="radio" name="routine_mode" value="weekly" {% if routine.mode == 'weekly' %}checked{% endif %} onchange="toggleRoutineMode()">
+                        <span><strong>Weekly split</strong><br>Pick which weekdays you train (e.g. 3- or 4-day split).</span>
+                    </label>
+                </div>
+
+                <!-- Cycle editor -->
+                <div id="cycle-editor" class="routine-editor">
+                    <div class="settings-grid">
+                        <div class="form-group">
+                            <label>Train (days)</label>
+                            <input type="number" name="work_days" min="1" max="14" value="{{ routine_work_days }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Then rest (days)</label>
+                            <input type="number" name="rest_days" min="0" max="14" value="{{ routine_rest_days }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Cycle start date</label>
+                            <input type="date" name="routine_start" value="{{ settings.routine_start or today }}" max="{{ today }}">
+                            <span class="field-note">A day you train (sets the rhythm)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weekly editor -->
+                <div id="weekly-editor" class="routine-editor">
+                    <label>Training days</label>
+                    <div class="weekday-grid">
+                        {% for i in range(7) %}
+                        <label class="weekday-chip">
+                            <input type="checkbox" name="weekday" value="{{ i }}" {% if i in routine_weekdays %}checked{% endif %}>
+                            <span>{{ weekday_labels[i] }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" style="margin-top: 1rem;">Save Routine</button>
+            </form>
+        </div>
+
+        <!-- BMI -->
+        <div class="card">
+            <h2>Body Mass Index</h2>
+            {% if bmi %}
+            <div class="bmi-display">
+                <div class="bmi-value">{{ bmi }}</div>
+                <div class="bmi-cat bmi-{{ bmi_category|lower }}">{{ bmi_category }}</div>
+            </div>
+            <div class="bmi-scale">
+                <span>Underweight &lt;18.5</span>
+                <span>Normal 18.5–24.9</span>
+                <span>Overweight 25–29.9</span>
+                <span>Obese 30+</span>
+            </div>
+            <p class="card-hint" style="margin-top: 1rem;">BMI is a rough health screen only — it doesn't tell muscle from fat, so we don't use it to set your macros.</p>
+            {% else %}
+            <p class="empty-state">Enter your weight and height above to see your BMI.</p>
+            {% endif %}
+        </div>
+
+        <!-- Calculated targets -->
+        <div class="card">
+            <h2>Your Daily Targets</h2>
+            {% if targets %}
+            <p class="card-hint">Based on {{ current_weight }}kg · {{ goal_labels[settings.goal] }} · {{ activity_labels[settings.activity] }}</p>
+            <div class="macro-summary">
+                <div class="macro-pill macro-cal">
+                    <span class="macro-num">{{ targets.calories }}</span>
+                    <span class="macro-lbl">Calories</span>
+                </div>
+                <div class="macro-pill macro-pro">
+                    <span class="macro-num">{{ targets.protein }}g</span>
+                    <span class="macro-lbl">Protein</span>
+                </div>
+                <div class="macro-pill macro-carb">
+                    <span class="macro-num">{{ targets.carbs }}g</span>
+                    <span class="macro-lbl">Carbs</span>
+                </div>
+                <div class="macro-pill macro-fat">
+                    <span class="macro-num">{{ targets.fat }}g</span>
+                    <span class="macro-lbl">Fat</span>
+                </div>
+            </div>
+            {% else %}
+            <p class="empty-state">Log your current weight above to calculate your targets.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function toggleRoutineMode() {
+            const mode = document.querySelector('input[name="routine_mode"]:checked').value;
+            document.getElementById('cycle-editor').style.display = mode === 'cycle' ? 'block' : 'none';
+            document.getElementById('weekly-editor').style.display = mode === 'weekly' ? 'block' : 'none';
+        }
+        toggleRoutineMode();
+    </script>
+</body>
+</html>

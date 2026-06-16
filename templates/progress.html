@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Progress - V-Taper Workout Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>V-Taper Workout Tracker</h1>
+        
+        <!-- Navigation -->
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/log">Workout</a>
+            <a href="/water">Water</a>
+            <a href="/meals">Meals</a>
+            <a href="/exercises">Exercises</a>
+            <a href="/weight">Weight</a>
+            <a href="/progress" class="active">Progress</a>
+            <a href="/settings">Settings</a>
+        </nav>
+
+        <!-- Commitment Heatmap -->
+        <div class="card">
+            <h2>Workout Consistency (Last 365 days)</h2>
+            <p class="card-hint">Routine: <strong>{{ routine.name }}</strong> — {{ routine.description }}</p>
+            <div id="heatmap" class="heatmap-container"></div>
+            <div class="heatmap-legend">
+                <div class="cell" style="background: #34c759;"></div><span>Done</span>
+                <div class="cell" style="background: #ff6b6b;"></div><span>Missed</span>
+                <div class="cell" style="background: #e5e5e7;"></div><span>Rest</span>
+                <div class="cell" style="background: #0071e3;"></div><span>Bonus</span>
+                <div class="cell" style="background: #ffd60a;"></div><span>Today (pending)</span>
+            </div>
+            <div id="heatmap-tooltip" class="heatmap-tooltip"></div>
+        </div>
+
+        <!-- Weight Progress -->
+        <div class="card">
+            <h2>Body Weight</h2>
+            <canvas id="weightChart"></canvas>
+        </div>
+
+        <!-- Exercise Progress -->
+        <div class="card">
+            <h2>Exercise Progress</h2>
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <select id="exerciseSelect" onchange="updateExerciseChart()">
+                    {% for exercise in exercises %}
+                    <option value="{{ exercise.id }}">{{ exercise.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <canvas id="exerciseChart"></canvas>
+        </div>
+
+        <!-- Detailed Workout History -->
+        <div class="card">
+            <h2>Detailed Workout History</h2>
+            <div id="workoutHistory" style="max-height: 500px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Heatmap
+        const workoutDates = {{ workout_dates | tojson }};
+        const routine = {{ routine | tojson }};
+        const loggedSet = new Set(workoutDates);
+        const heatmapContainer = document.getElementById('heatmap');
+        const tooltip = document.getElementById('heatmap-tooltip');
+
+        function isWorkoutDay(d) {
+            const p = routine.pattern || 'W';
+            if (routine.mode === 'weekly') {
+                const idx = (d.getDay() + 6) % 7;        // JS Sun=0 -> Mon=0
+                return p[idx % p.length] === 'W';
+            }
+            const start = new Date(routine.start + 'T00:00:00');
+            const offset = Math.floor((d - start) / 86400000);
+            return p[((offset % p.length) + p.length) % p.length] === 'W';
+        }
+
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        for (let i = 364; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
+            const logged = loggedSet.has(dateStr);
+            const workoutDay = isWorkoutDay(date);
+
+            let cls, status;
+            if (workoutDay) {
+                if (logged) { cls = 'done'; status = 'Workout done 💪'; }
+                else if (dateStr === todayStr) { cls = 'scheduled'; status = "Workout day — not logged yet"; }
+                else { cls = 'missed'; status = 'Workout missed'; }
+            } else {
+                if (logged) { cls = 'bonus'; status = 'Bonus workout on a rest day 🔥'; }
+                else { cls = 'rest'; status = 'Rest day'; }
+            }
+
+            const cell = document.createElement('div');
+            cell.className = 'heatmap-cell ' + cls;
+
+            const niceDate = date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+            cell.addEventListener('mouseenter', () => {
+                tooltip.textContent = niceDate + ' — ' + status;
+                tooltip.style.opacity = '1';
+            });
+            cell.addEventListener('mousemove', (e) => {
+                tooltip.style.left = (e.pageX + 12) + 'px';
+                tooltip.style.top = (e.pageY + 12) + 'px';
+            });
+            cell.addEventListener('mouseleave', () => { tooltip.style.opacity = '0'; });
+            heatmapContainer.appendChild(cell);
+        }
+
+        // Weight Chart
+        const weightHistory = {{ workout_history | tojson }};
+        const weightCtx = document.getElementById('weightChart').getContext('2d');
+        
+        const weightData = weightHistory.filter(w => w.body_weight).reverse();
+        new Chart(weightCtx, {
+            type: 'line',
+            data: {
+                labels: weightData.map(w => w.date),
+                datasets: [{
+                    label: 'Body Weight (kg)',
+                    data: weightData.map(w => w.body_weight),
+                    borderColor: '#0071e3',
+                    backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#0071e3',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        ticks: { color: 'rgba(255,255,255,0.6)' }
+                    },
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.1)' },
+                        ticks: { color: 'rgba(255,255,255,0.6)' }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        labels: { 
+                            color: '#fff',
+                            font: { size: 14 }
+                        } 
+                    }
+                }
+            }
+        });
+
+        // Exercise Progress Chart
+        const exerciseProgress = {{ exercise_progress | tojson }};
+        let exerciseChart;
+        
+        function updateExerciseChart() {
+            const exerciseId = document.getElementById('exerciseSelect').value;
+            const data = exerciseProgress[exerciseId].data.reverse();
+            
+            if (exerciseChart) {
+                exerciseChart.destroy();
+            }
+            
+            const ctx = document.getElementById('exerciseChart').getContext('2d');
+            exerciseChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [{
+                        label: 'Weight (kg)',
+                        data: data.map(d => d.weight),
+                        borderColor: '#34c759',
+                        backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#34c759',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Reps',
+                        data: data.map(d => d.reps),
+                        borderColor: '#ff9500',
+                        backgroundColor: 'rgba(255, 149, 0, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#ff9500',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { 
+                            labels: { 
+                                color: '#fff',
+                                font: { size: 14 }
+                            } 
+                        }
+                    }
+                }
+            });
+        }
+
+        updateExerciseChart();
+
+        // Detailed Workout History
+        function loadWorkoutHistory() {
+            const historyDiv = document.getElementById('workoutHistory');
+            const workoutHistory = {{ detailed_workout_history | tojson }};
+            
+            if (workoutHistory.length === 0) {
+                historyDiv.innerHTML = '<p style="color: #86868b;">No workout history yet</p>';
+                return;
+            }
+
+            let html = '';
+            workoutHistory.forEach(workout => {
+                const date = workout.date;
+                const exercises = workout.exercises || [];
+                
+                html += `
+                    <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f5f5f7; border-radius: 12px;">
+                        <div style="font-weight: 600; color: #1d1d1f; margin-bottom: 0.5rem;">${date}</div>
+                        ${exercises.length > 0 ? exercises.map(ex => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #e5e5e7;">
+                                <div>
+                                    <div style="font-weight: 500; color: #1d1d1f;">${ex.name}</div>
+                                    <div style="font-size: 0.85rem; color: #86868b;">${ex.body_part}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-weight: 600; color: #0071e3;">${ex.sets} × ${ex.reps} @ ${ex.weight || 0}kg</div>
+                                    ${ex.timestamp ? `<div style="font-size: 0.75rem; color: #86868b;">${ex.timestamp.split('T')[1].split('.')[0]}</div>` : ''}
+                                </div>
+                            </div>
+                        `).join('') : '<p style="color: #86868b; font-size: 0.9rem;">No exercises logged</p>'}
+                    </div>
+                `;
+            });
+            
+            historyDiv.innerHTML = html;
+        }
+
+        loadWorkoutHistory();
+    </script>
+</body>
+</html>

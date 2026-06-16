@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercises - V-Taper Workout Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>V-Taper Workout Tracker</h1>
+        
+        <!-- Navigation -->
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/log">Workout</a>
+            <a href="/water">Water</a>
+            <a href="/meals">Meals</a>
+            <a href="/exercises" class="active">Exercises</a>
+            <a href="/weight">Weight</a>
+            <a href="/progress">Progress</a>
+            <a href="/settings">Settings</a>
+        </nav>
+
+        <!-- Add Exercise Form -->
+        <div class="card">
+            <h2>Add New Exercise</h2>
+            <form action="/exercises" method="POST" class="form-row">
+                <div class="form-group">
+                    <label>Exercise Name</label>
+                    <input type="text" name="name" required placeholder="e.g., Push-ups">
+                </div>
+                <div class="form-group">
+                    <label>Body Part</label>
+                    <select name="body_part">
+                        <option value="shoulders">Shoulders</option>
+                        <option value="back">Back</option>
+                        <option value="chest">Chest</option>
+                        <option value="legs">Legs</option>
+                        <option value="arms">Arms</option>
+                        <option value="core">Core</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Default Sets</label>
+                    <input type="number" name="default_sets" value="3">
+                </div>
+                <div class="form-group">
+                    <label>Default Reps</label>
+                    <input type="number" name="default_reps" value="10">
+                </div>
+                <button type="submit" class="btn-success">Add Exercise</button>
+            </form>
+        </div>
+
+        <!-- Exercise List -->
+        <div class="card">
+            <h2>Your Exercises</h2>
+            {% for exercise in exercises %}
+            <div class="exercise-item">
+                <div class="exercise-info">
+                    <div class="exercise-name">{{ exercise.name }}</div>
+                    <div class="exercise-part">{{ exercise.body_part }} • {{ exercise.default_sets }} sets × {{ exercise.default_reps }} reps</div>
+                </div>
+                <form action="/exercises/{{ exercise.id }}/delete" method="POST">
+                    <button type="submit" class="delete-btn">✕</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

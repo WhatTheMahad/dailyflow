@@ -1,0 +1,16 @@
+# Database (personal data — recreated by init_db on first run)
+workout.db
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+CLAUDE.md
