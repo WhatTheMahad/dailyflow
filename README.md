@@ -7,7 +7,7 @@ A personal, single-user Flask app to track workouts, body weight, water, meals, 
 - **Workout** — log exercises (sets/reps/weight) for any date; edit, complete, or delete. Add workout routine.
 - **Water** — tap to add 500ml toward a 3L daily goal.
 - **Meals** — one-tap logging from your saved meal templates, with calories + macros (protein/carbs/fat) vs. bodyweight-based targets.
-- **Weight** — log/edit/delete entries with charts.
+- **Weight** — log/edit/delete entries with charts. Tracking.
 - **Settings** — height, goal & activity (drives calorie/macro targets + BMI) and a configurable workout **routine** (alternating cycle or weekly split).
 
 ## Stack
